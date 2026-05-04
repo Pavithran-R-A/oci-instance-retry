@@ -5,16 +5,19 @@ on:
     - cron: "0 * * * *"
     - cron: "30 * * * *"
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   retry:
     runs-on: ubuntu-latest
     timeout-minutes: 28
+    concurrency:
+      group: oci-retry
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,16 +36,13 @@ jobs:
           OCI_SSH_PUB_KEY: ${{ secrets.OCI_SSH_PUB_KEY }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python retry.py
 
       - name: Keep schedule alive
         if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-          echo "Last run: $(date)" > last_run.txt
+          echo "$(date -u)" > last_run.txt
           git add last_run.txt
-          git diff --staged --quiet || git commit -m "keep alive $(date)" && git push
+          git diff --staged --quiet || git commit -m "alive: $(date -u '+%Y-%m-%d %H:%M')" && git push
