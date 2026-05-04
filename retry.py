@@ -13,8 +13,8 @@ BOOT_GB     = 200
 SSH_PUB_KEY = os.environ["OCI_SSH_PUB_KEY"]
 BOT_TOKEN   = os.environ["TG_BOT_TOKEN"]
 CHAT_ID     = os.environ["TG_CHAT_ID"]
-RETRY_INTERVAL = 60
-MAX_ATTEMPTS   = 25  # GitHub Actions max ~25 min per run
+RETRY_INTERVAL = 20
+MAX_ATTEMPTS   = 70  # GitHub Actions max ~25 min per run
 
 def log(msg):
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
