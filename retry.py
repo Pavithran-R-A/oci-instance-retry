@@ -158,11 +158,12 @@ def accessible_compartments(identity_client):
             if getattr(compartment, "lifecycle_state", None) == "ACTIVE"
         )
     except oci.exceptions.ServiceError as exc:
-        # The API user might be intentionally restricted to the target compartment.
-        # In that case, fall back to the target compartment rather than weakening
-        # the free-tier checks silently.
-        log(f"Compartment inventory limited: {exc.code}")
-        compartment_ids.append(TARGET_COMPARTMENT)
+        # Free-tier safety depends on seeing the tenancy-wide resource usage.
+        # If the principal cannot inventory compartments, stop instead of risking
+        # a launch that could exceed the free allowance.
+        raise RuntimeError(
+            f"Cannot safely inventory tenancy compartments ({exc.code})."
+        ) from exc
 
     return list(dict.fromkeys(compartment_ids))
 
