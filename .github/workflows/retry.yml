@@ -1,23 +1,29 @@
 name: OCI Instance Retry
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/retry.yml"
   schedule:
-    - cron: "0 * * * *"
-    - cron: "30 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oci-retry
+  cancel-in-progress: false
 
 jobs:
   retry:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
-    concurrency:
-      group: oci-retry
-      cancel-in-progress: false
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -25,9 +31,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install oci requests
+        run: pip install --disable-pip-version-check oci requests
 
-      - name: Run OCI retry
+      - name: Run guarded OCI capacity check
         env:
           OCI_USER: ${{ secrets.OCI_USER }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
@@ -37,12 +43,3 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python retry.py
-
-      - name: Keep schedule alive
-        if: always()
-        run: |
-          git config user.email "action@github.com"
-          git config user.name "GitHub Action"
-          echo "$(date -u)" > last_run.txt
-          git add last_run.txt
-          git diff --staged --quiet || git commit -m "alive: $(date -u '+%Y-%m-%d %H:%M')" && git push
