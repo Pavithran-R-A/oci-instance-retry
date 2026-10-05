@@ -1,0 +1,28 @@
+name: Repair A1 Scheduler
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/repair-scheduler.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Force re-register A1 scheduled workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow disable claim.yml --repo "${{ github.repository }}" || true
+          sleep 3
+          gh workflow enable claim.yml --repo "${{ github.repository }}"
+          gh workflow run claim.yml --repo "${{ github.repository }}" --ref main
+          echo "A1 workflow re-enabled and an immediate dispatch was requested."
