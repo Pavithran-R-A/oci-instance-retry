@@ -1,11 +1,6 @@
 name: OCI Instance Retry
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/retry.yml"
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
