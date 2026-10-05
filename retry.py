@@ -484,7 +484,10 @@ def main():
         config,
         retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY,
     )
-    compute_client = oci.core.ComputeClient(config)
+    compute_client = oci.core.ComputeClient(
+        config,
+        retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY,
+    )
     block_client = oci.core.BlockstorageClient(
         config,
         retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY,
