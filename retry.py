@@ -17,7 +17,7 @@ FINGERPRINT = os.environ["OCI_FINGERPRINT"]
 TENANCY = os.environ["OCI_TENANCY"]
 PRIVATE_KEY = os.environ["OCI_PRIVATE_KEY"]
 SSH_PUB_KEY = os.environ["OCI_SSH_PUB_KEY"]
-SUBNET_ID = os.environ["OCI_SUBNET_ID"]
+SUBNET_ID = os.getenv("OCI_SUBNET_ID", "").strip()
 
 REGION = os.getenv("OCI_REGION", "ap-hyderabad-1").strip()
 TARGET_COMPARTMENT = os.getenv("OCI_COMPARTMENT_ID", "").strip() or TENANCY
@@ -332,6 +332,53 @@ def capacity_report(compute_client, availability_domain):
     return available, statuses
 
 
+def resolve_subnet(network_client):
+    if SUBNET_ID:
+        subnet = network_client.get_subnet(
+            SUBNET_ID,
+            retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY,
+        ).data
+        if getattr(subnet, "lifecycle_state", None) != "AVAILABLE":
+            raise RuntimeError("Configured subnet is not AVAILABLE.")
+        if getattr(subnet, "prohibit_public_ip_on_vnic", False):
+            raise RuntimeError("Configured subnet prohibits public IP assignment.")
+        return subnet.id
+
+    subnets = all_results(
+        network_client.list_subnets,
+        compartment_id=TARGET_COMPARTMENT,
+        lifecycle_state="AVAILABLE",
+    )
+    public_candidates = [
+        subnet
+        for subnet in subnets
+        if not getattr(subnet, "prohibit_public_ip_on_vnic", False)
+    ]
+
+    if len(public_candidates) == 1:
+        log("Auto-selected the tenancy's only public-IP-capable subnet.")
+        return public_candidates[0].id
+
+    default_candidates = [
+        subnet
+        for subnet in public_candidates
+        if "default" in (getattr(subnet, "display_name", "") or "").lower()
+    ]
+    if len(default_candidates) == 1:
+        log("Auto-selected the default public-IP-capable subnet.")
+        return default_candidates[0].id
+
+    if not public_candidates:
+        raise RuntimeError(
+            "No AVAILABLE subnet that permits public IP assignment was found."
+        )
+
+    raise RuntimeError(
+        "Multiple public-IP-capable subnets exist. Set OCI_SUBNET_ID explicitly "
+        "so the claimer can fail closed instead of guessing."
+    )
+
+
 def get_latest_ubuntu_image(compute_client):
     images = compute_client.list_images(
         TARGET_COMPARTMENT,
@@ -347,7 +394,7 @@ def get_latest_ubuntu_image(compute_client):
     return images[0].id
 
 
-def launch_instance(compute_client, image_id, availability_domain):
+def launch_instance(compute_client, image_id, availability_domain, subnet_id):
     details = oci.core.models.LaunchInstanceDetails(
         availability_domain=availability_domain,
         compartment_id=TARGET_COMPARTMENT,
@@ -357,7 +404,7 @@ def launch_instance(compute_client, image_id, availability_domain):
             memory_in_gbs=MEMORY_GB,
         ),
         create_vnic_details=oci.core.models.CreateVnicDetails(
-            subnet_id=SUBNET_ID,
+            subnet_id=subnet_id,
             assign_public_ip=True,
         ),
         source_details=oci.core.models.InstanceSourceViaImageDetails(
@@ -532,6 +579,7 @@ def main():
             else availability_domains[0]
         )
 
+        subnet_id = resolve_subnet(network_client)
         image_id = get_latest_ubuntu_image(compute_client)
         log(
             f"Capacity candidate found in {launch_ad}; "
@@ -541,6 +589,7 @@ def main():
             compute_client,
             image_id,
             launch_ad,
+            subnet_id,
         )
         announce_success(
             compute_client,
