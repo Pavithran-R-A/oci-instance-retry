@@ -58,14 +58,17 @@ OCI_FINGERPRINT
 OCI_TENANCY
 OCI_PRIVATE_KEY
 OCI_SSH_PUB_KEY
-OCI_SUBNET_ID
 TG_BOT_TOKEN
 TG_CHAT_ID
 ```
 
-The first seven OCI values must belong to the same tenancy/network configuration.
-`TG_BOT_TOKEN` and `TG_CHAT_ID` are optional; without them the claimer still
-works but Telegram notification is disabled.
+The five OCI identity/key values must belong to the same tenancy. `TG_BOT_TOKEN`
+and `TG_CHAT_ID` are optional; without them the claimer still works but Telegram
+notification is disabled.
+
+`OCI_SUBNET_ID` is optional. If it is absent, the script safely auto-selects the
+only public-IP-capable subnet (or the unique default public subnet). If multiple
+eligible subnets exist, it stops and asks for `OCI_SUBNET_ID` rather than guessing.
 
 Do **not** commit any of these values to source control.
 
