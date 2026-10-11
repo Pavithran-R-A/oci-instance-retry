@@ -1,3 +1,23 @@
+## Micro-hosted recovery (preferred)
+
+GitHub scheduled workflows have repeatedly delayed or missed five-minute
+`schedule` triggers. We now also provide a **standalone instance-principal
+claimer** designed to run on the existing Always Free
+`vennila-oracle-micro` E2.1.Micro via a five-minute systemd timer.
+
+- `micro_hunter.py` — OCI instance-principal authentication, capacity check,
+  explicit 2 OCPU / 12 GB and 200 GB block-volume guard, single launch.
+- `install_micro_hunter.sh` — low-memory isolated Ubuntu systemd service.
+- `configure_micro_instance_principal.py` — one-time exact-instance IAM setup
+  through the existing encrypted GitHub Actions OCI credentials.
+- `MICRO_HUNTER_SETUP.md` — secure deployment handoff for Codex with SSH access.
+
+**Do not assume the Micro-side timer is active until installed and a real systemd
+run is verified.** OCI's standard Instance Agent Run Command is not officially
+supported on Canonical Ubuntu; installation needs a legitimate SSH-capable
+environment. Never place the OCI signing private key into the Micro image or
+Git repository.
+
 # OCI Always Free A1 Claimer
 
 A small, bounded deployment utility for claiming an Oracle Cloud Infrastructure
