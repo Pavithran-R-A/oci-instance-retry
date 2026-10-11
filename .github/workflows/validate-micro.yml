@@ -1,0 +1,32 @@
+name: Validate Micro A1 Hunter
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "micro_hunter.py"
+      - "install_micro_hunter.sh"
+      - ".github/workflows/validate-micro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Python without executing OCI calls
+        run: python3 -m py_compile micro_hunter.py
+      - name: Validate installer shell syntax
+        run: bash -n install_micro_hunter.sh
+      - name: Validate systemd timer syntax
+        run: systemd-analyze calendar '*-*-* *:01/5:00'
+      - name: Confirm no credentials are embedded
+        run: |
+          if grep -Ein '(BEGIN (RSA|OPENSSH) PRIVATE KEY|TG_BOT_TOKEN\s*=\s*[^#[:space:]]+)' micro_hunter.py install_micro_hunter.sh; then
+            exit 1
+          fi
