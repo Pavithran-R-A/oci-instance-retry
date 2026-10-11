@@ -1,0 +1,104 @@
+name: Check Micro SSH Access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/check-micro-ssh.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install read-only OCI client
+        run: python -m pip install -q --disable-pip-version-check 'oci>=2.187,<3'
+      - name: Verify VM state and available SSH authorization without leaking credentials
+        env:
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_SSH_PUB_KEY: ${{ secrets.OCI_SSH_PUB_KEY }}
+          CANDIDATE_1: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          CANDIDATE_2: ${{ secrets.SSH_PRIVATE_KEY }}
+          CANDIDATE_3: ${{ secrets.SSH_PRIVATE_KEY_PEM }}
+          CANDIDATE_4: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
+          CANDIDATE_5: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          CANDIDATE_6: ${{ secrets.OCI_VM_SSH_KEY }}
+        run: |
+          python - <<'PY'
+          import os, stat, subprocess, socket, tempfile
+          import oci
+
+          with tempfile.TemporaryDirectory() as root:
+              def save(name, payload):
+                  filename=os.path.join(root,name)
+                  with open(filename,'w',encoding='utf-8') as fh: fh.write(payload)
+                  os.chmod(filename,0o600)
+                  return filename
+
+              apikey=save('api.pem',os.environ['OCI_PRIVATE_KEY'])
+              config={
+                'user':os.environ['OCI_USER'],
+                'fingerprint':os.environ['OCI_FINGERPRINT'],
+                'tenancy':os.environ['OCI_TENANCY'],
+                'key_file':apikey,
+                'region':'ap-hyderabad-1',
+              }
+              oci.config.validate_config(config)
+              compute=oci.core.ComputeClient(config)
+              instances=oci.pagination.list_call_get_all_results(
+                compute.list_instances,
+                compartment_id=config['tenancy'],
+              ).data
+              vm=[i for i in instances if i.display_name=='vennila-oracle-micro'
+                  and i.shape=='VM.Standard.E2.1.Micro'
+                  and i.lifecycle_state!='TERMINATED']
+              print('MICRO_INSTANCE_MATCH_COUNT='+str(len(vm)),flush=True)
+              if len(vm)==1:
+                  print('MICRO_LIFECYCLE_STATE='+vm[0].lifecycle_state,flush=True)
+
+              pub=os.getenv('OCI_SSH_PUB_KEY','')
+              expected=set()
+              for line in pub.splitlines():
+                  tokens=line.strip().split()
+                  if len(tokens)>=2 and tokens[0].startswith(('ssh-','ecdsa-')):
+                      expected.add(tuple(tokens[:2]))
+              found=0
+              matching=[]
+              for n in range(1,7):
+                  value=os.getenv('CANDIDATE_'+str(n),'').replace('\\n','\n')
+                  if not value.strip():continue
+                  found+=1
+                  key=save('candidate'+str(n),value)
+                  try:
+                      cp=subprocess.run(['ssh-keygen','-y','-P','','-f',key],
+                          text=True,capture_output=True,timeout=5)
+                      tokens=cp.stdout.strip().split()
+                      if cp.returncode==0 and len(tokens)>=2 and tuple(tokens[:2]) in expected:
+                          matching.append(n)
+                  except Exception:
+                      pass
+              print('SSH_PRIVATE_KEY_CANDIDATES_FOUND='+str(found),flush=True)
+              print('SSH_PRIVATE_KEY_MATCHING_CANDIDATE_INDEXES='+
+                  (','.join(map(str,matching)) if matching else 'none'),flush=True)
+
+              try:
+                  with socket.create_connection(('129.225.93.220',22),timeout=7):
+                      print('MICRO_SSH_TCP_22=reachable',flush=True)
+              except socket.timeout:
+                  print('MICRO_SSH_TCP_22=timed_out',flush=True)
+              except ConnectionRefusedError:
+                  print('MICRO_SSH_TCP_22=refused',flush=True)
+              except OSError:
+                  print('MICRO_SSH_TCP_22=unavailable',flush=True)
+          PY
