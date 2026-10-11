@@ -1,0 +1,37 @@
+name: Provision Exact-Instance Micro IAM
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/bootstrap-micro-iam.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: one-time-micro-iam
+  cancel-in-progress: false
+
+jobs:
+  prepare-iam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify bootstrap script
+        run: python -m py_compile configure_micro_instance_principal.py
+      - name: Install OCI Python SDK
+        run: python -m pip install -q --disable-pip-version-check 'oci>=2.187,<3'
+      - name: Provision tightly-scoped IAM group and policy
+        env:
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+        run: python configure_micro_instance_principal.py
