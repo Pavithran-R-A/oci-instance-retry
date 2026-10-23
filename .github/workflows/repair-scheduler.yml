@@ -26,3 +26,5 @@ jobs:
           gh workflow enable claim.yml --repo "${{ github.repository }}"
           gh workflow run claim.yml --repo "${{ github.repository }}" --ref main
           echo "A1 workflow re-enabled and an immediate dispatch was requested."
+
+# Scheduler wake-up: 2026-10-23 18:45 IST (comment-only; no behavior change)
