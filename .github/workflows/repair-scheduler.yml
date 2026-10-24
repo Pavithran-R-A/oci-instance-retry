@@ -28,3 +28,4 @@ jobs:
           echo "A1 workflow re-enabled and an immediate dispatch was requested."
 
 # Scheduler wake-up: 2026-10-24 01:13 IST (comment-only; no behavior change)
+# Scheduler wake-up: 2026-10-24 07:14 IST (comment-only; 6-hour cooldown elapsed)
