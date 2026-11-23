@@ -278,3 +278,5 @@ jobs:
 # Scheduler wake-up: 2026-11-23 08:24 IST (verified disable/enable states and immediate dispatch)
 
 # Scheduler wake-up: 2026-11-23 15:14 IST (comment-only; six-hour cooldown elapsed; A1 schedule-event run #299 is stale)
+
+# Scheduler wake-up: 2026-11-23 21:31 IST (comment-only; six-hour repair cooldown elapsed; scheduled A1 run remains overdue)
