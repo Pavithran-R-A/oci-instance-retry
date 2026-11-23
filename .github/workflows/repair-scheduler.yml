@@ -19,13 +19,53 @@ jobs:
       - name: Force re-register A1 scheduled workflow
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
-          gh workflow disable claim.yml --repo "${{ github.repository }}" || true
-          sleep 3
-          gh workflow enable claim.yml --repo "${{ github.repository }}"
-          gh workflow run claim.yml --repo "${{ github.repository }}" --ref main
-          echo "A1 workflow re-enabled and an immediate dispatch was requested."
+          workflow_api="repos/${GITHUB_REPOSITORY}/actions/workflows/claim.yml"
+          state_before="$(gh api "$workflow_api" --jq '.state')"
+          if [[ "$state_before" != "active" ]]; then
+            echo "Expected claim.yml to be active before repair; found: $state_before" >&2
+            exit 1
+          fi
+          gh workflow disable claim.yml --repo "$GITHUB_REPOSITORY"
+          disabled_state=""
+          for attempt in {1..10}; do
+            disabled_state="$(gh api "$workflow_api" --jq '.state')"
+            [[ "$disabled_state" == "disabled_manually" ]] && break
+            sleep 2
+          done
+          if [[ "$disabled_state" != "disabled_manually" ]]; then
+            echo "Could not verify claim.yml disabled; last state: $disabled_state" >&2
+            exit 1
+          fi
+          echo "Verified claim.yml state: disabled_manually"
+          gh workflow enable claim.yml --repo "$GITHUB_REPOSITORY"
+          enabled_state=""
+          for attempt in {1..10}; do
+            enabled_state="$(gh api "$workflow_api" --jq '.state')"
+            [[ "$enabled_state" == "active" ]] && break
+            sleep 2
+          done
+          if [[ "$enabled_state" != "active" ]]; then
+            echo "Could not verify claim.yml re-enabled; last state: $enabled_state" >&2
+            exit 1
+          fi
+          echo "Verified claim.yml state: active"
+          dispatch_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run claim.yml --repo "$GITHUB_REPOSITORY" --ref main
+          dispatched_run_id=""
+          for attempt in {1..15}; do
+            runs_json="$(gh api "$workflow_api/runs?event=workflow_dispatch&per_page=10")"
+            dispatched_run_id="$(jq -r --arg since "$dispatch_started_at" '[.workflow_runs[] | select(.head_branch == "main" and .created_at >= $since)] | first | .id // empty' <<< "$runs_json")"
+            [[ -n "$dispatched_run_id" ]] && break
+            sleep 2
+          done
+          if [[ -z "$dispatched_run_id" ]]; then
+            echo "Immediate A1 dispatch was requested but no new main workflow_dispatch run was observed." >&2
+            exit 1
+          fi
+          echo "Verified immediate A1 dispatch on main; run ID: $dispatched_run_id"
 
 # Scheduler wake-up: 2026-10-24 01:13 IST (comment-only; no behavior change)
 # Scheduler wake-up: 2026-10-24 07:14 IST (comment-only; 6-hour cooldown elapsed)
@@ -235,3 +275,4 @@ jobs:
 # Scheduler wake-up: 2026-11-22 18:51 IST (comment-only; >30m since latest scheduled A1 run #294; Repair #111 cooldown elapsed)
 
 # Scheduler wake-up: 2026-11-23 01:12 IST (comment-only; >30m since scheduled A1 #294; Repair #112 cooldown elapsed)
+# Scheduler wake-up: 2026-11-23 08:24 IST (verified disable/enable states and immediate dispatch)
