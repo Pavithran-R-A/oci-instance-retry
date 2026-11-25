@@ -290,3 +290,5 @@ jobs:
 # Scheduler wake-up: 2026-11-24 23:36 IST (comment-only; six-hour cooldown elapsed; latest scheduled A1 run #299 remains stale)
 
 # Scheduler wake-up: 2026-11-25 05:50 IST (comment-only; latest scheduled A1 run #299 is stale; six-hour cooldown since Repair #120 elapsed)
+
+# Scheduler wake-up: 2026-11-25 11:58 IST (comment-only; >30 minutes since latest scheduled A1 run #299; six-hour cooldown since Repair #121 elapsed)
